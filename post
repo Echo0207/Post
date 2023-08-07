@@ -1,22 +1,57 @@
+import configparser
 from apscheduler.schedulers.background import BackgroundScheduler
 import requests
 import datetime
+import os
 
 def post_to_facebook(token, message):
-    post_url = "https://graph.facebook.com/v10.0/me/feed"
-    payload = {'message': message, 'access_token': token}
-    response = requests.post(post_url, params=payload)
-    print(response.json())
+    try:
+        post_url = "https://graph.facebook.com/v10.0/me/feed"
+        payload = {'message': message, 'access_token': token}
+        response = requests.post(post_url, params=payload)
+        response.raise_for_status()  # Raises stored HTTPError, if one occurred.
+        print(response.json())
+    except requests.HTTPError as http_err:
+        print(f'HTTP error occurred: {http_err}')
+    except Exception as err:
+        print(f'Other error occurred: {err}')
 
-def schedule_post(token, message, post_datetime):
-    # 初始化一個背景調度器
+def post_video_to_facebook(token, video_path):
+    try:
+        post_url = "https://graph.facebook.com/v10.0/me/videos"
+        video_data = open(video_path, 'rb')
+        payload = {'access_token': token, 'source': video_data}
+        response = requests.post(post_url, files=payload)
+        response.raise_for_status()
+        print(response.json())
+    except requests.HTTPError as http_err:
+        print(f'HTTP error occurred: {http_err}')
+    except Exception as err:
+        print(f'Other error occurred: {err}')
+
+def schedule_post(token, message, post_datetime, video_path=None):
     scheduler = BackgroundScheduler()
-    scheduler.add_job(lambda: post_to_facebook(token, message), 'date', run_date=post_datetime)
+    if video_path:
+        scheduler.add_job(lambda: post_video_to_facebook(token, video_path), 'date', run_date=post_datetime)
+    else:
+        scheduler.add_job(lambda: post_to_facebook(token, message), 'date', run_date=post_datetime)
     scheduler.start()
 
-# 使用Access Token
-access_token = "YOUR_ACCESS_TOKEN"
-message = "Hello World!"
-post_datetime = datetime.datetime(2023, 8, 8, 15, 30) # 指定發文的日期和時間
+def main():
+    config = configparser.ConfigParser()
+    config.read('settings.ini')
 
-schedule_post(access_token, message, post_datetime)
+    access_token = config['DEFAULT']['Access_Token']
+    message = config['DEFAULT']['Message']
+    post_datetime_str = config['DEFAULT']['Post_Datetime']
+    post_datetime = datetime.datetime.strptime(post_datetime_str, "%Y-%m-%d %H:%M:%S")
+
+    video_path = config['DEFAULT'].get('Video_Path')  # Returns None if the option is not found
+    if video_path and not os.path.isfile(video_path):
+        print(f"Error: The specified video file does not exist: {video_path}")
+        return
+
+    schedule_post(access_token, message, post_datetime, video_path)
+
+if __name__ == "__main__":
+    main()
