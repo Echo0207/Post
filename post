@@ -1,0 +1,22 @@
+from apscheduler.schedulers.background import BackgroundScheduler
+import requests
+import datetime
+
+def post_to_facebook(token, message):
+    post_url = "https://graph.facebook.com/v10.0/me/feed"
+    payload = {'message': message, 'access_token': token}
+    response = requests.post(post_url, params=payload)
+    print(response.json())
+
+def schedule_post(token, message, post_datetime):
+    # 初始化一個背景調度器
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(lambda: post_to_facebook(token, message), 'date', run_date=post_datetime)
+    scheduler.start()
+
+# 使用Access Token
+access_token = "YOUR_ACCESS_TOKEN"
+message = "Hello World!"
+post_datetime = datetime.datetime(2023, 8, 8, 15, 30) # 指定發文的日期和時間
+
+schedule_post(access_token, message, post_datetime)
